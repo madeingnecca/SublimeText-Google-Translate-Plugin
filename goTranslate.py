@@ -57,6 +57,7 @@ class GoTranslateCommand(sublime_plugin.TextCommand):
                 return True
         return False
 
+
 class GoTranslateInfoCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         settings = sublime.load_settings("goTranslate.sublime-settings")
@@ -75,6 +76,53 @@ class GoTranslateInfoCommand(sublime_plugin.TextCommand):
         text = (json.dumps(translate.langs, ensure_ascii = False, indent = 2))
 
         v.replace(edit, v.sel()[0], text)
+
+
+class GoTranslateFromToCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        settings = sublime.load_settings("goTranslate.sublime-settings")
+        source_language = settings.get("source_language")
+        target_language = settings.get("target_language")
+        proxy_enable = settings.get("proxy_enable")
+        proxy_type = settings.get("proxy_type")
+        proxy_host = settings.get("proxy_host")
+        proxy_port = settings.get("proxy_port")
+
+        v = self.view
+        selection = v.substr(v.sel()[0])
+
+        translate = GoogleTranslate(proxy_enable, proxy_type, proxy_host, proxy_port, source_language, target_language)
+
+        text = (json.dumps(translate.langs['langs'], ensure_ascii = False))
+        continents = json.loads(text)
+
+        def build_language_options(prefix):
+            lkey = []
+            ltrasl = []
+            for (slug, title) in continents.items():
+                lkey.append(slug)
+                ltrasl.append(prefix+title+' ['+slug+']')
+
+            return {"keys": lkey, "labels": ltrasl}
+
+        options = {}
+        options["from"] = build_language_options("From: ")
+        options["to"] = build_language_options("To: ")
+
+        choice = {}
+
+        def on_chosen_from_language(index):
+            if index >= 0:
+                choice["from"] = options["from"]["keys"][index]
+                sublime.set_timeout(lambda: self.view.window().show_quick_panel(options["to"]["labels"], on_chosen_to_language), 10)                
+
+        def on_chosen_to_language(index):
+            if index >= 0:
+                choice["to"] = options["to"]["keys"][index]
+                self.view.run_command("go_translate", {"target_language": choice["to"], "source_language": choice["from"]})
+
+        sublime.set_timeout(lambda: self.view.window().show_quick_panel(options["from"]["labels"], on_chosen_from_language), 10)
+
 
 class GoTranslateToCommand(sublime_plugin.TextCommand):
     def run(self, edit):
